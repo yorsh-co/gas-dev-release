@@ -1,5 +1,5 @@
 // @ts-check
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 /**
  * Runs git and returns its trimmed stdout.
@@ -39,4 +39,22 @@ export function gitSucceeds(args, cwd) {
   } catch {
     return false;
   }
+}
+
+/**
+ * Runs git and returns its exit status and stderr, without throwing on a non-zero exit.
+ *
+ * @param {string[]} args Git arguments.
+ * @param {string} cwd Directory to run in.
+ * @returns {{ status: number, stderr: string }}
+ * @throws {Error} When git cannot be started.
+ */
+export function gitStatus(args, cwd) {
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'ignore', 'pipe'],
+  });
+  if (result.error) throw result.error;
+  return { status: result.status ?? -1, stderr: result.stderr.trim() };
 }

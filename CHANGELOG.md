@@ -2,6 +2,15 @@
 
 ---
 
+## [Unreleased]
+
+### Fixed
+
+- A repository moved on disk no longer breaks its release worktree: the worktree links are repaired (`git worktree repair`) before stale registrations are pruned
+- A leftover `.worktrees/<branch>` that is not a valid worktree of the repository on that branch is reported with how to remove it, instead of as "local commits not on the remote"; other ancestry-check failures now surface git's error
+
+---
+
 ## [1.0.1] - 2026-10-27
 
 ### Fixed

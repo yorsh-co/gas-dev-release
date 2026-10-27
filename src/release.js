@@ -4,14 +4,15 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { loadConfig } from './config.js';
 import { ReleaseError } from './errors.js';
-import { git, gitSucceeds } from './git.js';
+import { git, gitStatus, gitSucceeds } from './git.js';
 import { matchesAny } from './glob.js';
 import { releasePackageJson } from './package-json.js';
 
@@ -310,11 +311,14 @@ function syncWorktree(config, target, cwd) {
     );
   }
 
+  // Re-links a worktree whose repository or directory moved; fails harmlessly when unregistered.
+  if (existsSync(worktree)) gitSucceeds(['worktree', 'repair', relative], cwd);
+
   // Drops registrations whose directory is gone; they would otherwise keep the branch "in use".
   git(['worktree', 'prune'], cwd);
 
   if (existsSync(worktree)) {
-    // Reuse the existing worktree.
+    assertWorktree(worktree, relative, branch, cwd);
   } else if (
     gitSucceeds(
       ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`],
@@ -331,16 +335,60 @@ function syncWorktree(config, target, cwd) {
   }
 
   if (hasRemote) {
-    if (
-      !gitSucceeds(['merge-base', '--is-ancestor', 'HEAD', remoteRef], worktree)
-    ) {
+    const { status, stderr } = gitStatus(
+      ['merge-base', '--is-ancestor', 'HEAD', remoteRef],
+      worktree,
+    );
+    if (status === 1) {
       throw new ReleaseError(
         `Local ${branch} has commits that are not on ${remoteRef} — resolve before releasing.`,
+      );
+    }
+    if (status !== 0) {
+      throw new Error(
+        `git merge-base --is-ancestor HEAD ${remoteRef} failed: ${stderr}`,
       );
     }
     git(['merge', '--ff-only', remoteRef], worktree);
   }
   return { worktree, hasRemote };
+}
+
+/**
+ * Verifies that an existing directory is a working worktree of this repository on the branch.
+ *
+ * @param {string} worktree Absolute worktree path.
+ * @param {string} relative Worktree path relative to the project root.
+ * @param {string} branch
+ * @param {string} cwd
+ * @returns {void}
+ * @throws {ReleaseError} When the directory is not a worktree of this repository on the branch.
+ */
+function assertWorktree(worktree, relative, branch, cwd) {
+  /**
+   * @param {string} directory
+   * @returns {string}
+   */
+  const commonDir = (directory) =>
+    realpathSync(
+      resolve(directory, git(['rev-parse', '--git-common-dir'], directory)),
+    );
+
+  let valid = false;
+  try {
+    valid =
+      realpathSync(git(['rev-parse', '--show-toplevel'], worktree)) ===
+        realpathSync(worktree) &&
+      commonDir(worktree) === commonDir(cwd) &&
+      git(['symbolic-ref', '--short', 'HEAD'], worktree) === branch;
+  } catch {
+    // Any git failure means the directory is not a usable worktree.
+  }
+  if (!valid) {
+    throw new ReleaseError(
+      `${relative} exists but is not a worktree of this repository on ${branch} — remove it (rm -rf ${relative}) and run the release again.`,
+    );
+  }
 }
 
 /**
