@@ -39,10 +39,17 @@ export function globMatcher(pattern) {
 /**
  * Tells whether a relative path matches any of the globs.
  *
+ * A pattern ending in `/` matches directories only (the slash is not part of
+ * the glob), so `web/` skips a directory but not a file named `web`.
+ *
  * @param {string} path `/`-separated path relative to the copied directory.
  * @param {string[]} patterns
+ * @param {boolean} [isDirectory] Whether the path is a directory.
  * @returns {boolean}
  */
-export function matchesAny(path, patterns) {
-  return patterns.some((pattern) => globMatcher(pattern)(path));
+export function matchesAny(path, patterns, isDirectory = false) {
+  return patterns.some((pattern) => {
+    if (!pattern.endsWith('/')) return globMatcher(pattern)(path);
+    return isDirectory && globMatcher(pattern.slice(0, -1))(path);
+  });
 }
