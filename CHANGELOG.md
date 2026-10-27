@@ -2,6 +2,14 @@
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- Package description and `--help` text match the README tagline
+
+---
+
 ## [1.0.0] - 2026-10-27
 
 ### Added
