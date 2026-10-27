@@ -310,6 +310,9 @@ function syncWorktree(config, target, cwd) {
     );
   }
 
+  // Drops registrations whose directory is gone; they would otherwise keep the branch "in use".
+  git(['worktree', 'prune'], cwd);
+
   if (existsSync(worktree)) {
     // Reuse the existing worktree.
   } else if (
@@ -318,7 +321,7 @@ function syncWorktree(config, target, cwd) {
       cwd,
     )
   ) {
-    git(['worktree', 'add', relative, branch], cwd);
+    addBranchWorktree(relative, branch, cwd);
   } else if (hasRemote) {
     git(['worktree', 'add', '--track', '-b', branch, relative, remoteRef], cwd);
   } else {
@@ -338,6 +341,25 @@ function syncWorktree(config, target, cwd) {
     git(['merge', '--ff-only', remoteRef], worktree);
   }
   return { worktree, hasRemote };
+}
+
+/**
+ * Checks out an existing local branch into a new worktree.
+ *
+ * @param {string} relative Worktree path relative to the project root.
+ * @param {string} branch
+ * @param {string} cwd
+ * @returns {void}
+ * @throws {ReleaseError} When the branch cannot be checked out, e.g. it is in use by another worktree.
+ */
+function addBranchWorktree(relative, branch, cwd) {
+  try {
+    git(['worktree', 'add', relative, branch], cwd);
+  } catch (error) {
+    throw new ReleaseError(
+      `Cannot check out ${branch} into ${relative}: ${/** @type {Error} */ (error).message}\nRun "git worktree list" to see where ${branch} is checked out.`,
+    );
+  }
 }
 
 /**
