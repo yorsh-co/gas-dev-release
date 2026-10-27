@@ -23,6 +23,7 @@ import { releasePackageJson } from './package-json.js';
  * @property {Target} target
  * @property {string} worktree Absolute path of the target's worktree.
  * @property {string} tag Release tag, `<branch>/v<version>`.
+ * @property {boolean} hasRemote Whether the branch existed on the remote before the release.
  */
 
 /**
@@ -41,13 +42,14 @@ export function release(cwd, log = () => {}) {
 
   const prepared = config.targets.map((target) => {
     log(`[${target.branch}] Checking out release worktree...`);
-    const worktree = syncWorktree(config, target, cwd);
+    const { worktree, hasRemote } = syncWorktree(config, target, cwd);
     log(`[${target.branch}] Syncing release contents...`);
     stage(config, target, cwd, worktree);
     return {
       target,
       worktree,
       tag: releaseTag(target, config.version),
+      hasRemote,
     };
   });
 
@@ -57,6 +59,12 @@ export function release(cwd, log = () => {}) {
     throw new ReleaseError(
       `Nothing to release — ${branches} already matches the build.`,
     );
+  }
+
+  for (const { target, worktree } of prepared) {
+    if (!changed.some((item) => item.worktree === worktree)) {
+      log(`[${target.branch}] No changes — skipped`);
+    }
   }
 
   log('Committing and tagging...');
@@ -89,7 +97,11 @@ function releaseTag(target, version) {
 function preflight(config, cwd) {
   const { version, remote, targets } = config;
 
-  if (git(['status', '--porcelain'], cwd) !== '') {
+  // The tool's own worktrees may be untracked in projects that do not ignore them.
+  if (
+    git(['status', '--porcelain', '--', '.', ':(exclude).worktrees'], cwd) !==
+    ''
+  ) {
     throw new ReleaseError(
       'Working tree is not clean — commit or stash your changes first.',
     );
@@ -118,6 +130,20 @@ function preflight(config, cwd) {
       throw new ReleaseError(
         `${target.from}/ is missing or has no .js files — run the build first.`,
       );
+    }
+    for (const { src } of target.files) {
+      if (!isFile(join(cwd, src))) {
+        throw new ReleaseError(
+          `[${target.branch}] File ${src} does not exist — check "files".`,
+        );
+      }
+    }
+    for (const { from } of target.include) {
+      if (!isDirectory(join(cwd, from))) {
+        throw new ReleaseError(
+          `[${target.branch}] Include ${from}/ does not exist — run the build first.`,
+        );
+      }
     }
     const tag = releaseTag(target, version);
     if (
@@ -157,6 +183,22 @@ function remoteHas(remote, kind, name, cwd) {
 }
 
 /**
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isFile(path) {
+  return existsSync(path) && statSync(path).isFile();
+}
+
+/**
+ * @param {string} path
+ * @returns {boolean}
+ */
+function isDirectory(path) {
+  return existsSync(path) && statSync(path).isDirectory();
+}
+
+/**
  * @param {string} dir
  * @returns {boolean} Whether the directory contains a `.js` file at any depth.
  */
@@ -175,7 +217,7 @@ function hasJsFile(dir) {
  * @param {ReleaseConfig} config
  * @param {Target} target
  * @param {string} cwd
- * @returns {string} Absolute worktree path.
+ * @returns {{ worktree: string, hasRemote: boolean }} Absolute worktree path and whether the branch exists on the remote.
  * @throws {ReleaseError} When the local branch has commits the remote lacks.
  */
 function syncWorktree(config, target, cwd) {
@@ -220,7 +262,7 @@ function syncWorktree(config, target, cwd) {
     }
     git(['merge', '--ff-only', remoteRef], worktree);
   }
-  return worktree;
+  return { worktree, hasRemote };
 }
 
 /**
@@ -239,9 +281,13 @@ function stage(config, target, cwd, worktree) {
     }
   }
 
-  copyTree(join(cwd, target.from), worktree, target.hide);
-  for (const file of target.files) {
-    copyFileSync(join(cwd, file), join(worktree, file));
+  copyTree(join(cwd, target.from), worktree, target.hide, target.exclude);
+  for (const { from, to, hide } of target.include) {
+    copyTree(join(cwd, from), join(worktree, to), hide, []);
+  }
+  for (const { src, dest } of target.files) {
+    mkdirSync(dirname(join(worktree, dest)), { recursive: true });
+    copyFileSync(join(cwd, src), join(worktree, dest));
   }
   if (target.packageJson) {
     writeFileSync(
@@ -253,22 +299,26 @@ function stage(config, target, cwd, worktree) {
 }
 
 /**
- * Recursively copies files, skipping those whose relative path matches a hide glob.
+ * Recursively copies files, skipping files that match a hide glob and files
+ * and directories that match an exclude glob.
  *
  * @param {string} source
  * @param {string} destination
  * @param {string[]} hide
+ * @param {string[]} exclude
  * @param {string} [prefix] Path of `source` relative to the copy root.
  * @returns {void}
  */
-function copyTree(source, destination, hide, prefix = '') {
+function copyTree(source, destination, hide, exclude, prefix = '') {
   for (const entry of readdirSync(source, { withFileTypes: true })) {
     const relative = `${prefix}${entry.name}`;
+    if (matchesAny(relative, exclude, entry.isDirectory())) continue;
     if (entry.isDirectory()) {
       copyTree(
         join(source, entry.name),
         join(destination, entry.name),
         hide,
+        exclude,
         `${relative}/`,
       );
     } else if (!matchesAny(relative, hide)) {
@@ -304,7 +354,35 @@ function push(config, prepared, cwd) {
     git(['push', '--atomic', config.remote, ...refs], cwd);
   } catch (error) {
     throw new ReleaseError(
-      `Push to ${config.remote} failed; local release commits and tags were kept. ${/** @type {Error} */ (error).message}`,
+      pushFailureMessage(config.remote, prepared, refs, error),
     );
   }
+}
+
+/**
+ * Builds the push failure message, with the commands to retry or to undo the local release.
+ *
+ * @param {string} remote
+ * @param {PreparedTarget[]} prepared
+ * @param {string[]} refs Refs passed to `git push`.
+ * @param {unknown} error The git failure.
+ * @returns {string}
+ */
+function pushFailureMessage(remote, prepared, refs, error) {
+  const reset = prepared.map(({ target, hasRemote }) =>
+    hasRemote
+      ? `  git -C .worktrees/${target.branch} reset --hard ${remote}/${target.branch}`
+      : `  git worktree remove --force .worktrees/${target.branch} && git branch -D ${target.branch}`,
+  );
+  return [
+    `Push to ${remote} failed; nothing was pushed, and the local release commits and tags were kept.`,
+    /** @type {Error} */ (error).message,
+    '',
+    'Run from the project root. To retry the push:',
+    `  git push --atomic ${remote} ${refs.join(' ')}`,
+    '',
+    'To discard the local release instead:',
+    ...prepared.map(({ tag }) => `  git tag -d ${tag}`),
+    ...reset,
+  ].join('\n');
 }

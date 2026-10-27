@@ -59,9 +59,19 @@ function configureUser(root, name = 'Test') {
 /**
  * Creates a project repo with a bare `origin`, a built `dist/` and the `v1.0.0` tag.
  *
+ * @param {object} [options]
+ * @param {Record<string, unknown>} [options.config] The `gasDevRelease` package.json key.
+ * @param {string} [options.gitignore] Content of `.gitignore`.
+ * @param {Record<string, string>} [options.files] Extra tracked files (path -> content).
+ * @param {(root: string) => void} [options.build] Writes the initial build output.
  * @returns {{ root: string, origin: string, sandbox: string }}
  */
-export function createProject() {
+export function createProject({
+  config,
+  gitignore = 'dist/\n.worktrees/\n',
+  files = {},
+  build = (dir) => writeBuild(dir, 'one'),
+} = {}) {
   const sandbox = mkdtempSync(join(tmpdir(), 'gas-dev-release-'));
   sandboxes.push(sandbox);
   const origin = join(sandbox, 'origin.git');
@@ -73,7 +83,7 @@ export function createProject() {
   git(root, 'remote', 'add', 'origin', origin);
 
   writeFiles(root, {
-    '.gitignore': 'dist/\n.worktrees/\n',
+    '.gitignore': gitignore,
     'README.md': '# lib\n',
     'LICENSE.md': 'MIT\n',
     'CHANGELOG.md': '# Changelog\n',
@@ -88,12 +98,14 @@ export function createProject() {
         repository: { type: 'git', url: 'https://example.com/gas-lib.git' },
         scripts: { build: 'tsc' },
         devDependencies: { typescript: '^5.0.0' },
+        ...(config && { gasDevRelease: config }),
       },
       null,
       2,
     )}\n`,
   });
-  writeBuild(root, 'one');
+  writeFiles(root, files);
+  build(root);
   git(root, 'add', '-A');
   git(root, 'commit', '-m', 'feat: initial');
   git(root, 'tag', 'v1.0.0');
@@ -113,6 +125,25 @@ export function writeBuild(root, marker) {
     'dist/lib.d.ts': `// ${marker}\n`,
     'dist/lib.types.js': "'use strict';\n",
     'dist/lib.types.d.ts': `// ${marker}\n`,
+  });
+}
+
+/**
+ * Writes a gas-webapp shaped build: backend files, `web/` client and `shared/` contract.
+ *
+ * @param {string} root
+ * @param {string} marker Changes the backend content only.
+ */
+export function writeWebappBuild(root, marker) {
+  writeFiles(root, {
+    'dist/main.js': `// ${marker}\n`,
+    'dist/main.d.ts': `// ${marker}\n`,
+    'dist/web/client.js': '// client\n',
+    'dist/web/client.d.ts': '// client\n',
+    'dist/web/types/x.js': "'use strict';\n",
+    'dist/web/types/x.d.ts': '// x\n',
+    'dist/shared/contract.types.js': "'use strict';\n",
+    'dist/shared/contract.types.d.ts': '// contract\n',
   });
 }
 
