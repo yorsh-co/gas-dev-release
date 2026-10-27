@@ -5,3 +5,8 @@ updates:
     target-branch: develop
     schedule:
       interval: weekly
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        patterns:
+          - '*'
