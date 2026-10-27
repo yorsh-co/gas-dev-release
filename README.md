@@ -1,6 +1,6 @@
 # gas-dev-release
 
-## Release tool for gas-\* Google Apps Script libraries: publishes the build to dist branches with v-prefixed tags.
+## Release tool for gas-\* Google Apps Script libraries: publishes the build to dist branches with tags.
 
 > [!NOTE]
 > `gas-dev-release` is development tooling. It is installed as a dev dependency and is never pushed to Apps Script.
