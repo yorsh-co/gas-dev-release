@@ -1,6 +1,6 @@
 # gas-dev-release
 
-## Release tool for gas-\* Google Apps Script libraries: publishes the build to dist branches with v-prefixed tags.
+## Release tool for gas-\* Google Apps Script libraries: publishes the build to dist branches with tags.
 
 > [!NOTE]
 > `gas-dev-release` is development tooling. It is installed as a dev dependency and is never pushed to Apps Script.
@@ -202,7 +202,7 @@ Because the push is atomic, a multi-target release is never left half-published.
 
 ## Migrating from `scripts/release.sh`
 
-1. Make GitHub the canonical remote: `git remote rename origin gitea`, `git remote add origin git@github.com:yorsh-co/<name>.git`, push all branches and tags, and set the upstreams to `origin`. Keep Gitea as a mirror of GitHub.
+1. Make GitHub the canonical remote: make sure GitHub has every branch and tag, then `git remote set-url origin git@github.com:yorsh-co/<name>.git`. Any other copy (e.g. a self-hosted Gitea) should pull-mirror GitHub rather than be pushed to.
 2. Use `v`-prefixed tags: replace plain tags (`X.Y.Z`, `dist/X.Y.Z`) with `vX.Y.Z` and `dist/vX.Y.Z`, and run `git config gitflow.prefix.versiontag v`.
 3. Add the dev dependency and the `"release": "gas-dev-release"` script (see [Install](#install)). Add `gasDevRelease` only when the project is not a single `dist` target with the default settings.
 4. Delete `scripts/release.sh` and `scripts/write-release-package-json.js`, and point `build:release` at `npm run release`.

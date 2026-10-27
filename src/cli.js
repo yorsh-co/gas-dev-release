@@ -13,7 +13,7 @@ const OPTIONS = /** @type {const} */ ({
 
 const USAGE = `Usage: gas-dev-release [--dry-run] [--target <branch>]...
 
-Publishes the build of a gas-* library to its dist branch(es) with v-prefixed tags.
+Publishes the build of a gas-* library to its dist branch(es) with tags.
 
 Options:
   --dry-run          Run all checks and show the staged changes; commit, tag and push nothing

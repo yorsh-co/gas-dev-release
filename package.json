@@ -1,8 +1,8 @@
 {
   "name": "gas-dev-release",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
-  "description": "Release tool for gas-* Google Apps Script libraries: publishes the build to dist branches with v-prefixed tags.",
+  "description": "Release tool for gas-* Google Apps Script libraries: publishes the build to dist branches with tags.",
   "repository": {
     "type": "git",
     "url": "https://github.com/yorsh-co/gas-dev-release.git"

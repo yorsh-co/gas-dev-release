@@ -2,6 +2,18 @@
 
 ---
 
+## [1.0.1] - 2026-10-27
+
+### Fixed
+
+- A stale worktree registration (its directory was deleted or moved) no longer blocks a release; it is pruned before the release worktree is created
+
+### Changed
+
+- Package description and `--help` text match the README tagline
+
+---
+
 ## [1.0.0] - 2026-10-27
 
 ### Added

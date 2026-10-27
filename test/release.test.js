@@ -121,6 +121,26 @@ describe('release', () => {
       git(project.origin, 'rev-parse', 'dist'),
     );
   });
+
+  it('prunes a stale worktree registration of the dist branch', () => {
+    const { root, origin, sandbox } = createProject();
+    expect(runRelease(root).status).toBe(0);
+    const previous = git(origin, 'rev-parse', 'dist');
+    const elsewhere = join(sandbox, 'elsewhere');
+    git(root, 'worktree', 'move', join(root, '.worktrees/dist'), elsewhere);
+    rmSync(elsewhere, { recursive: true });
+    expect(git(root, 'worktree', 'list', '--porcelain')).toContain('prunable');
+    writeBuild(root, 'two');
+    bumpVersion(root, '1.1.0');
+
+    const result = runRelease(root);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(git(origin, 'rev-parse', 'dist^')).toBe(previous);
+    expect(git(origin, 'rev-parse', 'dist/v1.1.0')).toBe(
+      git(origin, 'rev-parse', 'dist'),
+    );
+  });
 });
 
 describe('release refusals', () => {
@@ -194,5 +214,18 @@ describe('release refusals', () => {
       runRelease(root),
       /Nothing to release — dist already matches/,
     );
+  });
+
+  it('dist is checked out in a live worktree elsewhere', () => {
+    const { root, origin, sandbox } = createProject();
+    expect(runRelease(root).status).toBe(0);
+    const elsewhere = join(sandbox, 'elsewhere');
+    git(root, 'worktree', 'move', join(root, '.worktrees/dist'), elsewhere);
+    bumpVersion(root, '1.1.0');
+    const before = git(origin, 'rev-parse', 'dist');
+
+    expectRefusal(runRelease(root), /dist.*elsewhere/s);
+    expect(git(origin, 'rev-parse', 'dist')).toBe(before);
+    expect(git(root, 'tag', '--list', 'dist/v1.1.0')).toBe('');
   });
 });
