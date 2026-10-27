@@ -1,5 +1,7 @@
 // @ts-check
 import pkg from '../package.json' with { type: 'json' };
+import { ReleaseError } from './errors.js';
+import { release } from './release.js';
 
 const USAGE = `Usage: gas-dev-release [--dry-run] [--target <branch>]...
 
@@ -27,6 +29,14 @@ export async function main(argv) {
     process.stdout.write(`${pkg.version}\n`);
     return 0;
   }
-  process.stderr.write('gas-dev-release: not implemented yet\n');
-  return 1;
+  try {
+    release(process.cwd(), (message) => process.stdout.write(`${message}\n`));
+    return 0;
+  } catch (error) {
+    if (error instanceof ReleaseError) {
+      process.stderr.write(`gas-dev-release: ${error.message}\n`);
+      return 1;
+    }
+    throw error;
+  }
 }

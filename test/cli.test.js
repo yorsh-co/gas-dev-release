@@ -1,5 +1,8 @@
 // @ts-check
 import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import pkg from '../package.json' with { type: 'json' };
@@ -29,9 +32,19 @@ describe('gas-dev-release CLI', () => {
     expect(result.stdout.trim()).toBe(pkg.version);
   });
 
-  it('exits 1 with a message while the release logic is not implemented', () => {
-    const result = run([]);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('not implemented');
+  it('exits 1 with a prefixed message on a known failure', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gas-dev-release-'));
+    try {
+      const result = spawnSync(process.execPath, [BIN], {
+        cwd: dir,
+        encoding: 'utf8',
+      });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(
+        'gas-dev-release: Cannot read package.json',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
