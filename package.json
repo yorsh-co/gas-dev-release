@@ -1,6 +1,6 @@
 {
   "name": "gas-dev-release",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Release tool for gas-* Google Apps Script libraries: publishes the build to dist branches with tags.",
   "repository": {
