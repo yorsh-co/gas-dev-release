@@ -1,5 +1,5 @@
 // @ts-check
-import { rmSync, writeFileSync } from 'node:fs';
+import { renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -141,6 +141,24 @@ describe('release', () => {
       git(origin, 'rev-parse', 'dist'),
     );
   });
+
+  it('repairs the worktree links after the project directory moves', () => {
+    const { root, origin, sandbox } = createProject();
+    expect(runRelease(root).status).toBe(0);
+    const previous = git(origin, 'rev-parse', 'dist');
+    const moved = join(sandbox, 'moved');
+    renameSync(root, moved);
+    writeBuild(moved, 'two');
+    bumpVersion(moved, '1.1.0');
+
+    const result = runRelease(moved);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(git(origin, 'rev-parse', 'dist^')).toBe(previous);
+    expect(git(origin, 'rev-parse', 'dist/v1.1.0')).toBe(
+      git(origin, 'rev-parse', 'dist'),
+    );
+  });
 });
 
 describe('release refusals', () => {
@@ -227,5 +245,38 @@ describe('release refusals', () => {
     expectRefusal(runRelease(root), /dist.*elsewhere/s);
     expect(git(origin, 'rev-parse', 'dist')).toBe(before);
     expect(git(root, 'tag', '--list', 'dist/v1.1.0')).toBe('');
+  });
+
+  it('dist directory is an orphan of a deleted repository', () => {
+    const { root, origin, sandbox } = createProject();
+    expect(runRelease(root).status).toBe(0);
+    const worktree = join(root, '.worktrees/dist');
+    writeFileSync(join(worktree, '.git'), `gitdir: ${sandbox}/gone/.git\n`);
+    rmSync(join(root, '.git/worktrees/dist'), { recursive: true });
+    bumpVersion(root, '1.1.0');
+    const before = git(origin, 'rev-parse', 'dist');
+
+    const result = runRelease(root);
+
+    expectRefusal(
+      result,
+      /\.worktrees\/dist exists but is not a worktree of this repository on dist — remove it \(rm -rf \.worktrees\/dist\)/,
+    );
+    expect(result.stderr).not.toContain('not on origin/dist');
+    expect(git(origin, 'rev-parse', 'dist')).toBe(before);
+  });
+
+  it('dist directory has another branch checked out', () => {
+    const { root, origin } = createProject();
+    expect(runRelease(root).status).toBe(0);
+    git(join(root, '.worktrees/dist'), 'switch', '-c', 'other');
+    bumpVersion(root, '1.1.0');
+    const before = git(origin, 'rev-parse', 'dist');
+
+    expectRefusal(
+      runRelease(root),
+      /\.worktrees\/dist exists but is not a worktree of this repository on dist/,
+    );
+    expect(git(origin, 'rev-parse', 'dist')).toBe(before);
   });
 });
