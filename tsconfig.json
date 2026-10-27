@@ -1,21 +1,4 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "types": ["node"],
-
-    // Type-check plain JavaScript (JSDoc); nothing is emitted.
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true,
-
-    // Stricter Typechecking Options
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true,
-
-    "skipLibCheck": true
-  },
+  "extends": "gas-dev-config/tsconfig/node.json",
   "include": ["bin/**/*.js", "src/**/*.js", "test/**/*.js"]
 }
