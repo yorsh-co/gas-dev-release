@@ -27,54 +27,129 @@ import { releasePackageJson } from './package-json.js';
  */
 
 /**
+ * @typedef {object} ReleaseOptions
+ * @property {boolean} [dryRun] Stage and report the changes, then restore the worktrees; commit, tag and push nothing.
+ * @property {string[]} [targets] Branches to release; empty or omitted releases every configured target.
+ */
+
+/**
  * Releases the project: publishes each target's build to its branch and tags it.
+ *
+ * A dry run performs the same preflight, worktree sync (including the fetch and the fast-forward of
+ * the local branch to the remote) and staging as a real run, prints the staged diff stat per target
+ * and restores every worktree to its HEAD. It fails exactly where a real run would, including
+ * "Nothing to release".
  *
  * @param {string} cwd Project root.
  * @param {(message: string) => void} [log] Progress output.
+ * @param {ReleaseOptions} [options]
  * @returns {void}
  * @throws {ReleaseError} On an expected failure; nothing is pushed.
  */
-export function release(cwd, log = () => {}) {
-  const config = loadConfig(cwd);
+export function release(
+  cwd,
+  log = () => {},
+  { dryRun = false, targets = [] } = {},
+) {
+  const config = selectTargets(loadConfig(cwd), targets);
 
   log('Running preflight checks...');
   preflight(config, cwd);
 
-  const prepared = config.targets.map((target) => {
-    log(`[${target.branch}] Checking out release worktree...`);
-    const { worktree, hasRemote } = syncWorktree(config, target, cwd);
-    log(`[${target.branch}] Syncing release contents...`);
-    stage(config, target, cwd, worktree);
-    return {
-      target,
-      worktree,
-      tag: releaseTag(target, config.version),
-      hasRemote,
-    };
-  });
+  /** @type {PreparedTarget[]} */
+  const prepared = [];
+  try {
+    for (const target of config.targets) {
+      log(`[${target.branch}] Checking out release worktree...`);
+      const { worktree, hasRemote } = syncWorktree(config, target, cwd);
+      prepared.push({
+        target,
+        worktree,
+        tag: releaseTag(target, config.version),
+        hasRemote,
+      });
+      log(`[${target.branch}] Syncing release contents...`);
+      stage(config, target, cwd, worktree);
+    }
 
-  const changed = prepared.filter(({ worktree }) => hasStagedChanges(worktree));
-  if (changed.length === 0) {
-    const branches = prepared.map(({ target }) => target.branch).join(', ');
+    const changed = prepared.filter(({ worktree }) =>
+      hasStagedChanges(worktree),
+    );
+    if (changed.length === 0) {
+      const branches = prepared.map(({ target }) => target.branch).join(', ');
+      throw new ReleaseError(
+        `Nothing to release — ${branches} already matches the build.`,
+      );
+    }
+
+    for (const { target, worktree } of prepared) {
+      if (!changed.some((item) => item.worktree === worktree)) {
+        log(`[${target.branch}] No changes — skipped`);
+      }
+    }
+
+    if (dryRun) {
+      for (const { target, worktree } of changed) {
+        log(`[${target.branch}] Staged changes:`);
+        log(git(['diff', '--cached', '--stat'], worktree));
+      }
+      log('Dry run — nothing was committed, tagged or pushed.');
+      return;
+    }
+
+    log('Committing and tagging...');
+    for (const { worktree, tag } of changed) {
+      git(['commit', '-m', `merge: v${config.version}`], worktree);
+      git(['tag', tag], worktree);
+    }
+
+    log(`Pushing to ${config.remote}...`);
+    push(config, changed, cwd);
+  } finally {
+    if (dryRun) restoreWorktrees(prepared, cwd);
+  }
+}
+
+/**
+ * Restricts the configuration to the requested targets, keeping the configured order.
+ *
+ * @param {ReleaseConfig} config
+ * @param {string[]} branches Requested branches; empty selects every target.
+ * @returns {ReleaseConfig}
+ * @throws {ReleaseError} When a branch is not a configured target.
+ */
+function selectTargets(config, branches) {
+  if (branches.length === 0) return config;
+  const configured = config.targets.map(({ branch }) => branch);
+  const unknown = branches.find((branch) => !configured.includes(branch));
+  if (unknown !== undefined) {
     throw new ReleaseError(
-      `Nothing to release — ${branches} already matches the build.`,
+      `Unknown target "${unknown}" — configured branches: ${configured.join(', ')}.`,
     );
   }
+  return {
+    ...config,
+    targets: config.targets.filter(({ branch }) => branches.includes(branch)),
+  };
+}
 
-  for (const { target, worktree } of prepared) {
-    if (!changed.some((item) => item.worktree === worktree)) {
-      log(`[${target.branch}] No changes — skipped`);
+/**
+ * Undoes the staging of a dry run: resets each worktree to its HEAD, or removes a worktree that has
+ * no commits yet (a first release), leaving no local branch behind.
+ *
+ * @param {PreparedTarget[]} prepared
+ * @param {string} cwd
+ * @returns {void}
+ */
+function restoreWorktrees(prepared, cwd) {
+  for (const { worktree } of prepared) {
+    if (gitSucceeds(['rev-parse', '--verify', '--quiet', 'HEAD'], worktree)) {
+      git(['reset', '--hard'], worktree);
+      git(['clean', '-fdx'], worktree);
+    } else {
+      git(['worktree', 'remove', '--force', worktree], cwd);
     }
   }
-
-  log('Committing and tagging...');
-  for (const { worktree, tag } of changed) {
-    git(['commit', '-m', `merge: v${config.version}`], worktree);
-    git(['tag', tag], worktree);
-  }
-
-  log(`Pushing to ${config.remote}...`);
-  push(config, changed, cwd);
 }
 
 /**

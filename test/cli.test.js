@@ -47,4 +47,18 @@ describe('gas-dev-release CLI', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it.each([
+    [['--bogus'], /Unknown option '--bogus'/],
+    [['extra'], /Unexpected argument 'extra'/],
+    [['--target'], /argument missing/],
+    [['--dry-run=yes'], /does not take an argument/],
+  ])('exits 2 with a hint on invalid usage %j', (args, message) => {
+    const result = run(args);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toMatch(/^gas-dev-release: /);
+    expect(result.stderr).toMatch(message);
+    expect(result.stderr).toContain('Run gas-dev-release --help for usage.');
+    expect(result.stderr).not.toContain('    at ');
+  });
 });

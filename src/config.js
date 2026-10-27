@@ -46,6 +46,22 @@ function isObject(value) {
 }
 
 /**
+ * Rejects keys that are not known options, so typos do not silently fall back to defaults.
+ *
+ * @param {Record<string, unknown>} object
+ * @param {string[]} known
+ * @param {string} key Path of the object, for the error message.
+ * @returns {void}
+ * @throws {ReleaseError} Naming the first unknown key.
+ */
+function rejectUnknownKeys(object, known, key) {
+  const unknown = Object.keys(object).find((name) => !known.includes(name));
+  if (unknown !== undefined) {
+    throw new ReleaseError(`${key}.${unknown} is not a known option.`);
+  }
+}
+
+/**
  * @param {unknown} value
  * @param {string} key Config key, for the error message.
  * @param {string[]} fallback
@@ -98,6 +114,7 @@ function resolveInclude(value, key) {
   if (!isObject(value)) {
     throw new ReleaseError(`${key} must be an object with "from" and "to".`);
   }
+  rejectUnknownKeys(value, ['from', 'to', 'hide'], key);
   return {
     from: requiredString(value.from, `${key}.from`),
     to: insideBranch(requiredString(value.to, `${key}.to`), `${key}.to`),
@@ -136,6 +153,11 @@ function resolveTarget(value, index) {
   if (!isObject(value)) {
     throw new ReleaseError(`${key} must be an object.`);
   }
+  rejectUnknownKeys(
+    value,
+    ['branch', 'from', 'hide', 'exclude', 'include', 'files', 'packageJson'],
+    key,
+  );
   if (
     value.packageJson !== undefined &&
     typeof value.packageJson !== 'boolean'
@@ -213,6 +235,7 @@ export function loadConfig(cwd) {
   if (!isObject(options)) {
     throw new ReleaseError('gasDevRelease must be an object.');
   }
+  rejectUnknownKeys(options, ['remote', 'targets'], 'gasDevRelease');
   return {
     remote:
       options.remote === undefined
