@@ -61,6 +61,7 @@ function configureUser(root, name = 'Test') {
  *
  * @param {object} [options]
  * @param {Record<string, unknown>} [options.config] The `gasDevRelease` package.json key.
+ * @param {Record<string, unknown>} [options.pkg] Extra package.json fields, e.g. `gasDevConfig`.
  * @param {string} [options.gitignore] Content of `.gitignore`.
  * @param {Record<string, string>} [options.files] Extra tracked files (path -> content).
  * @param {(root: string) => void} [options.build] Writes the initial build output.
@@ -68,6 +69,7 @@ function configureUser(root, name = 'Test') {
  */
 export function createProject({
   config,
+  pkg = {},
   gitignore = 'dist/\n.worktrees/\n',
   files = {},
   build = (dir) => writeBuild(dir, 'one'),
@@ -99,6 +101,7 @@ export function createProject({
         scripts: { build: 'tsc' },
         devDependencies: { typescript: '^5.0.0' },
         ...(config && { gasDevRelease: config }),
+        ...pkg,
       },
       null,
       2,

@@ -14,7 +14,7 @@ import { loadConfig } from './config.js';
 import { ReleaseError } from './errors.js';
 import { git, gitStatus, gitSucceeds } from './git.js';
 import { matchesAny } from './glob.js';
-import { releasePackageJson } from './package-json.js';
+import { gasLibraryFor, releasePackageJson } from './package-json.js';
 
 /** @typedef {import('./config.js').ReleaseConfig} ReleaseConfig */
 /** @typedef {import('./config.js').Target} Target */
@@ -93,6 +93,13 @@ export function release(
       for (const { target, worktree } of changed) {
         log(`[${target.branch}] Staged changes:`);
         log(git(['diff', '--cached', '--stat'], worktree));
+        const gasLibrary = gasLibraryFor(config, target, cwd);
+        if (gasLibrary) {
+          log(
+            `[${target.branch}] gasLibrary.loadOrder: ${gasLibrary.loadOrder.length} file(s)`,
+          );
+          for (const file of gasLibrary.loadOrder) log(`  ${file}`);
+        }
       }
       log('Dry run — nothing was committed, tagged or pushed.');
       return;
@@ -221,6 +228,7 @@ function preflight(config, cwd) {
         );
       }
     }
+    gasLibraryFor(config, target, cwd);
     const tag = releaseTag(target, version);
     if (
       gitSucceeds(['rev-parse', '--verify', '--quiet', `refs/tags/${tag}`], cwd)
@@ -437,7 +445,7 @@ function stage(config, target, cwd, worktree) {
   if (target.packageJson) {
     writeFileSync(
       join(worktree, 'package.json'),
-      releasePackageJson(config.pkg),
+      releasePackageJson(config.pkg, gasLibraryFor(config, target, cwd)),
     );
   }
   git(['add', '-A'], worktree);
