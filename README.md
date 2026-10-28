@@ -135,17 +135,43 @@ Configuration is optional and lives under a `gasDevRelease` key in your `package
 
 Each target is merged over these defaults. Paths are relative to the project root unless noted.
 
-| Field         | Default                                       | Description                                                                                             |
-| ------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `branch`      | required                                      | Release branch; also the tag prefix (`<branch>/vX.Y.Z`)                                                 |
-| `from`        | `"dist"`                                      | Build directory copied to the branch root                                                               |
-| `hide`        | `["*.types.js"]`                              | Globs of files that are never shipped; removed if already on the branch                                 |
-| `exclude`     | `[]`                                          | Globs of `from` subpaths skipped entirely, e.g. `"web/"`                                                |
-| `include`     | `[]`                                          | Extra build trees: `{ "from", "to", "hide" }`, copied from `from` to `to` (relative to the branch root) |
-| `files`       | `["README.md", "LICENSE.md", "CHANGELOG.md"]` | Project files copied into the branch; `"src:dest"` renames. Replaces the default list                   |
-| `packageJson` | `true`                                        | Write the trimmed `package.json` (name, version, description, license, author, repository)              |
+| Field         | Default                                       | Description                                                                                              |
+| ------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `branch`      | required                                      | Release branch; also the tag prefix (`<branch>/vX.Y.Z`)                                                  |
+| `from`        | `"dist"`                                      | Build directory copied to the branch root                                                                |
+| `hide`        | `["*.types.js"]`                              | Globs of files that are never shipped; removed if already on the branch                                  |
+| `exclude`     | `[]`                                          | Globs of `from` subpaths skipped entirely, e.g. `"web/"`                                                 |
+| `include`     | `[]`                                          | Extra build trees: `{ "from", "to", "hide" }`, copied from `from` to `to` (relative to the branch root)  |
+| `files`       | `["README.md", "LICENSE.md", "CHANGELOG.md"]` | Project files copied into the branch; `"src:dest"` renames. Replaces the default list                    |
+| `packageJson` | `true`                                        | Write the trimmed `package.json` (name, version, description, license, author, repository, `gasLibrary`) |
 
 Unknown keys in `gasDevRelease`, in a target or in an `include` entry are rejected, naming the key path (for example `gasDevRelease.targets[1].pakageJson is not a known option`).
+
+### Library metadata
+
+Libraries declare their load order, and optionally their peer libraries, in the `gasDevConfig` key of `package.json`, which `gas-dev-config check` validates:
+
+```jsonc
+"gasDevConfig": {
+  "loadOrder": ["gas-sheetdb.types.ts", "gas-sheetdb.errors.ts", "internal/x.ts"],
+  "peers": { "gas-lock": "^1.1.0" }
+}
+```
+
+When `loadOrder` is set, every target with `packageJson: true` gets a `gasLibrary` block after the other fields of its release `package.json`:
+
+```jsonc
+"gasLibrary": {
+  "loadOrder": ["gas-sheetdb.errors.js", "internal/x.js"],
+  "peers": { "gas-lock": "^1.1.0" }
+}
+```
+
+- Each `x.ts` entry becomes `x.js`, relative to the target's `from` directory.
+- Entries the target does not ship (matched by `hide` or `exclude`, including through an excluded directory) are dropped, which is why `gas-sheetdb.types.js` is absent above.
+- A built `.js` file that does not exist is a preflight error; so is a load order where every entry is dropped.
+- `peers` is copied as is and omitted when not configured. Without `loadOrder`, no `gasLibrary` block is written.
+- A dry run lists the shipped files per target.
 
 ### Glob semantics
 

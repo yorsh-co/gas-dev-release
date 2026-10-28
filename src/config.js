@@ -33,6 +33,8 @@ import { ReleaseError } from './errors.js';
  * @property {string} version The project's version.
  * @property {Record<string, unknown>} pkg The project's package.json.
  * @property {Target[]} targets Resolved release targets.
+ * @property {string[]} [loadOrder] `gasDevConfig.loadOrder`: `.ts` paths relative to `src/`, in load order.
+ * @property {Record<string, string>} [peers] `gasDevConfig.peers`: optional libraries and their version ranges.
  */
 
 const DEFAULT_FILES = ['README.md', 'LICENSE.md', 'CHANGELOG.md'];
@@ -211,6 +213,44 @@ function resolveTargets(targets) {
 }
 
 /**
+ * Resolves the library metadata from `gasDevConfig`. Shape checks only; `gas-dev-config check`
+ * validates the paths and versions.
+ *
+ * @param {unknown} value The `gasDevConfig` value.
+ * @returns {{ loadOrder?: string[], peers?: Record<string, string> }}
+ * @throws {ReleaseError} When `loadOrder` or `peers` has the wrong shape.
+ */
+function resolveLibraryMetadata(value) {
+  if (!isObject(value)) return {};
+  const { loadOrder, peers } = value;
+  if (
+    loadOrder !== undefined &&
+    (!Array.isArray(loadOrder) ||
+      loadOrder.length === 0 ||
+      loadOrder.some(
+        (item) => typeof item !== 'string' || !item.endsWith('.ts'),
+      ))
+  ) {
+    throw new ReleaseError(
+      'gasDevConfig.loadOrder must be a non-empty array of .ts paths.',
+    );
+  }
+  if (
+    peers !== undefined &&
+    (!isObject(peers) ||
+      Object.values(peers).some((range) => typeof range !== 'string'))
+  ) {
+    throw new ReleaseError(
+      'gasDevConfig.peers must be an object of version ranges.',
+    );
+  }
+  return {
+    ...(loadOrder && { loadOrder }),
+    ...(peers && { peers: /** @type {Record<string, string>} */ (peers) }),
+  };
+}
+
+/**
  * Reads the project's package.json and resolves the release configuration.
  * Each target is merged over the defaults; without `targets` the single default target is used.
  *
@@ -219,7 +259,7 @@ function resolveTargets(targets) {
  * @throws {ReleaseError} When package.json is missing or has no version, or the config is invalid.
  */
 export function loadConfig(cwd) {
-  /** @type {Record<string, unknown> & { version?: unknown, gasDevRelease?: unknown }} */
+  /** @type {Record<string, unknown> & { version?: unknown, gasDevRelease?: unknown, gasDevConfig?: unknown }} */
   let pkg;
   try {
     pkg = JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
@@ -244,5 +284,6 @@ export function loadConfig(cwd) {
     version: pkg.version,
     pkg,
     targets: resolveTargets(options.targets),
+    ...resolveLibraryMetadata(pkg.gasDevConfig),
   };
 }
