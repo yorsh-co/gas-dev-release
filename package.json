@@ -1,6 +1,6 @@
 {
   "name": "gas-dev-release",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "private": true,
   "description": "Release tool for gas-* Google Apps Script libraries: publishes the build to dist branches with tags.",
   "repository": {
@@ -24,15 +24,11 @@
     "bin",
     "src"
   ],
-  "prettier": {
-    "singleQuote": true
-  },
+  "prettier": "gas-dev-config/prettier",
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.5",
     "eslint": "^10.7.0",
-    "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.7.0",
+    "gas-dev-config": "github:yorsh-co/gas-dev-config#semver:^1.1.0",
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
@@ -43,8 +39,11 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run test && gas-dev-config check",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "gasDevConfig": {
+    "preset": "node"
   }
 }
