@@ -2,7 +2,11 @@
 
 ---
 
-## [Unreleased]
+## [1.1.0] - 2026-10-28
+
+### Added
+
+- `gasLibrary` metadata in the release `package.json` when `gasDevConfig.loadOrder` is set: the load order as shipped `.js` paths (files hidden or excluded by the target are dropped) and `gasDevConfig.peers`; missing built files fail the preflight, and a dry run lists the load order
 
 ### Changed
 
