@@ -2,6 +2,14 @@
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- README: links to the overview of the gas-dev-\* tools in gas-dev-config's README
+
+---
+
 ## [1.1.0] - 2026-10-28
 
 ### Added
