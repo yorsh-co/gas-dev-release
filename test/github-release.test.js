@@ -1,4 +1,7 @@
 // @ts-check
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ReleaseError } from '../src/errors.js';
 import {
@@ -17,7 +20,7 @@ afterEach(cleanup);
  */
 function repoFor(url) {
   const { root } = createProject();
-  git(root, 'remote', 'set-url', 'origin', url);
+  git(root, 'config', 'remote.origin.url', url);
   return githubRepo('origin', root);
 }
 
@@ -44,6 +47,45 @@ describe('githubRepo', () => {
   ])('rejects %s', (url) => {
     expect(() => repoFor(url)).toThrow(ReleaseError);
     expect(() => repoFor(url)).toThrow(/is not a GitHub repository/);
+  });
+
+  describe('SSH host aliases', () => {
+    const originalPath = process.env.PATH;
+    /** @type {string} */
+    let bin;
+
+    afterEach(() => {
+      process.env.PATH = originalPath;
+      rmSync(bin, { recursive: true, force: true });
+    });
+
+    /** Puts an `ssh` stub on PATH that maps the host `gh-alias` to github.com. */
+    function stubSsh() {
+      bin = mkdtempSync(join(tmpdir(), 'fake-ssh-'));
+      const ssh = join(bin, 'ssh');
+      writeFileSync(
+        ssh,
+        '#!/bin/sh\n[ "$2" = gh-alias ] && echo "hostname github.com" || echo "hostname $2"\n',
+      );
+      chmodSync(ssh, 0o755);
+      process.env.PATH = `${bin}${delimiter}${originalPath}`;
+    }
+
+    it.each(['gh-alias:acme/gas-lib.git', 'git@gh-alias:acme/gas-lib'])(
+      'resolves %s through ssh -G',
+      (url) => {
+        stubSsh();
+        expect(repoFor(url)).toBe('acme/gas-lib');
+      },
+    );
+
+    it.each(['other-alias:acme/gas-lib.git', '-oFoo:acme/gas-lib'])(
+      'rejects %s',
+      (url) => {
+        stubSsh();
+        expect(() => repoFor(url)).toThrow(/is not a GitHub repository/);
+      },
+    );
   });
 });
 
