@@ -10,3 +10,20 @@ export class ReleaseError extends Error {
     this.name = 'ReleaseError';
   }
 }
+
+/**
+ * The release was pushed, but publishing the GitHub Release failed.
+ * Exits with code 3 so CI can tell it apart from a release that never happened.
+ */
+export class GitHubReleaseError extends ReleaseError {
+  /** Process exit code for this failure. */
+  exitCode = 3;
+
+  /**
+   * @param {string} message
+   */
+  constructor(message) {
+    super(message);
+    this.name = 'GitHubReleaseError';
+  }
+}
