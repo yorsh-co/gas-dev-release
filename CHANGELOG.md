@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.3.0] - 2026-11-04
+
 ### Changed
 
 - Release preflight now fails when `peer/<name>.peer.types.d.ts` has no `@version` tag or one that differs from the `package.json` version; bump it in the release branch
