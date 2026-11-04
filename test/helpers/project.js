@@ -1,6 +1,7 @@
 // @ts-check
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   cpSync,
   mkdirSync,
   mkdtempSync,
@@ -11,6 +12,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const FAKE_GH = fileURLToPath(new URL('./fake-gh.js', import.meta.url));
 
 const BIN = fileURLToPath(
   new URL('../../bin/gas-dev-release.js', import.meta.url),
@@ -185,13 +188,61 @@ export function cloneProject({ root, origin, sandbox }) {
  *
  * @param {string} cwd
  * @param {string[]} [args]
+ * @param {Record<string, string>} [env] Variables merged over `process.env`.
  * @returns {import('node:child_process').SpawnSyncReturns<string>}
  */
-export function runRelease(cwd, args = []) {
+export function runRelease(cwd, args = [], env = {}) {
   return spawnSync(process.execPath, [BIN, ...args], {
     cwd,
     encoding: 'utf8',
+    env: { ...process.env, ...env },
   });
+}
+
+/**
+ * Makes the project's `origin` look like a GitHub remote: sets its URL to
+ * `https://github.com/acme/gas-lib.git` and maps that URL back to the local bare repo.
+ *
+ * @param {string} root Project root.
+ * @param {string} origin Path of the bare origin repo.
+ */
+export function useGitHubRemote(root, origin) {
+  const url = 'https://github.com/acme/gas-lib.git';
+  git(root, 'config', 'remote.origin.url', url);
+  git(root, 'config', `url.${origin}.insteadOf`, url);
+}
+
+/**
+ * Installs a stub `gh` on a temporary `PATH` entry.
+ *
+ * @param {object} [behavior]
+ * @param {'absent' | 'published' | 'draft' | 'error'} [behavior.view] Outcome of `release view`.
+ * @param {'ok' | 'fail'} [behavior.create] Outcome of `release create`.
+ * @returns {{ env: Record<string, string>, calls: () => { args: string[], stdin: string }[] }}
+ */
+export function fakeGh({ view = 'absent', create = 'ok' } = {}) {
+  const sandbox = mkdtempSync(join(tmpdir(), 'gas-dev-release-gh-'));
+  sandboxes.push(sandbox);
+  const bin = join(sandbox, 'bin');
+  const log = join(sandbox, 'calls.jsonl');
+  mkdirSync(bin);
+  const gh = join(bin, 'gh');
+  cpSync(FAKE_GH, gh);
+  chmodSync(gh, 0o755);
+  writeFileSync(log, '');
+  return {
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      FAKE_GH_LOG: log,
+      FAKE_GH_VIEW: view,
+      FAKE_GH_CREATE: create,
+    },
+    calls: () =>
+      readFileSync(log, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line)),
+  };
 }
 
 /** Removes every sandbox created by `createProject`. */

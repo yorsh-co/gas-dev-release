@@ -11,8 +11,16 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { loadConfig } from './config.js';
-import { ReleaseError } from './errors.js';
+import { GitHubReleaseError, ReleaseError } from './errors.js';
 import { git, gitStatus, gitSucceeds } from './git.js';
+import {
+  createRelease,
+  findRelease,
+  githubRepo,
+  notesPath,
+  releaseNotes,
+  retryCommand,
+} from './github-release.js';
 import { matchesAny } from './glob.js';
 import { gasLibraryFor, releasePackageJson } from './package-json.js';
 
@@ -41,11 +49,14 @@ import { gasLibraryFor, releasePackageJson } from './package-json.js';
  * and restores every worktree to its HEAD. It fails exactly where a real run would, including
  * "Nothing to release".
  *
+ * With `githubRelease` enabled, a successful push is followed by a GitHub Release for `vX.Y.Z`.
+ *
  * @param {string} cwd Project root.
  * @param {(message: string) => void} [log] Progress output.
  * @param {ReleaseOptions} [options]
  * @returns {void}
  * @throws {ReleaseError} On an expected failure; nothing is pushed.
+ * @throws {GitHubReleaseError} When the push succeeded but the GitHub Release could not be created.
  */
 export function release(
   cwd,
@@ -55,7 +66,7 @@ export function release(
   const config = selectTargets(loadConfig(cwd), targets);
 
   log('Running preflight checks...');
-  preflight(config, cwd);
+  const github = preflight(config, cwd);
 
   /** @type {PreparedTarget[]} */
   const prepared = [];
@@ -101,7 +112,12 @@ export function release(
           for (const file of gasLibrary.loadOrder) log(`  ${file}`);
         }
       }
-      log('Dry run — nothing was committed, tagged or pushed.');
+      if (github) {
+        log(`GitHub Release v${config.version}: ${dryRunOutcome(github)}`);
+        log('Dry run — nothing was committed, tagged, pushed or published.');
+      } else {
+        log('Dry run — nothing was committed, tagged or pushed.');
+      }
       return;
     }
 
@@ -113,8 +129,75 @@ export function release(
 
     log(`Pushing to ${config.remote}...`);
     push(config, changed, cwd);
+    if (github) publishGitHubRelease(config, github, cwd, log);
   } finally {
     if (dryRun) restoreWorktrees(prepared, cwd);
+  }
+}
+
+/**
+ * @typedef {object} GitHubPlan
+ * @property {string} repo `owner/repo` of the remote.
+ * @property {'absent' | 'published' | 'draft'} state Existing GitHub Release state for `vX.Y.Z`.
+ */
+
+/**
+ * @param {GitHubPlan} github
+ * @returns {string}
+ */
+function dryRunOutcome({ repo, state }) {
+  if (state === 'published') return 'already exists — skipped';
+  if (state === 'draft') {
+    return 'a draft exists — skipped (publish or delete it)';
+  }
+  return `would be created on ${repo}`;
+}
+
+/**
+ * Creates the GitHub Release after the push. Failure is fatal but nothing is rolled back; the notes
+ * are saved so the printed command can retry.
+ *
+ * @param {ReleaseConfig} config
+ * @param {GitHubPlan} github
+ * @param {string} cwd
+ * @param {(message: string) => void} log
+ * @returns {void}
+ * @throws {GitHubReleaseError} When gh fails to create the Release.
+ */
+function publishGitHubRelease(config, { repo, state }, cwd, log) {
+  const tag = `v${config.version}`;
+  if (state !== 'absent') {
+    log(`GitHub Release ${tag}: ${dryRunOutcome({ repo, state })}`);
+    return;
+  }
+  log(`Creating GitHub Release ${tag}...`);
+  const notes = releaseNotes(cwd, config.version);
+  try {
+    createRelease(repo, tag, notes, cwd);
+  } catch (error) {
+    /** @type {string[]} */
+    let saved;
+    try {
+      writeFileSync(join(cwd, notesPath(tag)), notes);
+      saved = [];
+    } catch (writeError) {
+      saved = [
+        '',
+        `The notes file ${notesPath(tag)} could not be saved: ${/** @type {Error} */ (writeError).message}`,
+        'Release notes:',
+        notes,
+      ];
+    }
+    throw new GitHubReleaseError(
+      [
+        `Push to ${config.remote} succeeded; the GitHub Release for ${tag} was not created.`,
+        /** @type {Error} */ (error).message,
+        ...saved,
+        '',
+        'Run from the project root to retry:',
+        `  ${retryCommand(repo, tag)}`,
+      ].join('\n'),
+    );
   }
 }
 
@@ -174,7 +257,7 @@ function releaseTag(target, version) {
  *
  * @param {ReleaseConfig} config
  * @param {string} cwd
- * @returns {void}
+ * @returns {GitHubPlan | null} The GitHub Release plan, or null when `githubRelease` is off.
  * @throws {ReleaseError}
  */
 function preflight(config, cwd) {
@@ -242,6 +325,54 @@ function preflight(config, cwd) {
         `Tag ${tag} already exists on ${remote} — bump the version in package.json.`,
       );
     }
+  }
+
+  if (!config.githubRelease) return null;
+  const repo = githubRepo(remote, cwd);
+  assertRemoteVersionTag(remote, versionTag, tagCommit, cwd);
+  return { repo, state: findRelease(repo, versionTag, cwd) };
+}
+
+/**
+ * Requires `vX.Y.Z` on the remote at the released commit, so `gh` never creates the tag itself.
+ *
+ * @param {string} remote
+ * @param {string} tag
+ * @param {string} commit Local commit the tag peels to.
+ * @param {string} cwd
+ * @returns {void}
+ * @throws {ReleaseError} When the tag is missing from the remote or points elsewhere.
+ */
+function assertRemoteVersionTag(remote, tag, commit, cwd) {
+  let output;
+  try {
+    output = git(
+      [
+        'ls-remote',
+        '--tags',
+        remote,
+        `refs/tags/${tag}`,
+        `refs/tags/${tag}^{}`,
+      ],
+      cwd,
+    );
+  } catch (error) {
+    throw new ReleaseError(
+      `Cannot query remote "${remote}": ${/** @type {Error} */ (error).message}`,
+    );
+  }
+  /** @type {Map<string, string>} */
+  const refs = new Map();
+  for (const line of output.split('\n')) {
+    const [sha, ref] = line.split('\t');
+    if (sha && ref) refs.set(ref, sha);
+  }
+  const remoteCommit =
+    refs.get(`refs/tags/${tag}^{}`) ?? refs.get(`refs/tags/${tag}`);
+  if (remoteCommit !== commit) {
+    throw new ReleaseError(
+      `Version tag ${tag} is not on ${remote} (or differs) — run: git push ${remote} ${tag}`,
+    );
   }
 }
 
