@@ -75,6 +75,22 @@ describe('release', () => {
     );
   });
 
+  it('releases when the peer declarations @version matches package.json', () => {
+    const { root, origin } = createProject({
+      files: {
+        'peer/gas-lib.peer.types.d.ts':
+          '/**\n * @version 1.0.0\n */\nexport {};\n',
+      },
+    });
+
+    const result = runRelease(root);
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(git(origin, 'rev-parse', 'dist/v1.0.0')).toBe(
+      git(origin, 'rev-parse', 'dist'),
+    );
+  });
+
   it('fast-forwards and removes files that left the build or are hidden', () => {
     const { root, origin } = createProject();
     writeBuild(root, 'one');
@@ -180,6 +196,21 @@ describe('release refusals', () => {
     git(root, 'add', '-A');
     git(root, 'commit', '-m', 'feat: more');
     expectRefusal(runRelease(root), /v1\.0\.0 does not point at HEAD/);
+  });
+
+  it('refuses when the peer declarations @version is stale, pushing nothing', () => {
+    const { root, origin } = createProject({
+      files: {
+        'peer/gas-lib.peer.types.d.ts':
+          '/**\n * @version 0.9.0\n */\nexport {};\n',
+      },
+    });
+    expectRefusal(
+      runRelease(root),
+      /peer\/gas-lib\.peer\.types\.d\.ts.*0\.9\.0.*1\.0\.0/s,
+    );
+    expect(git(origin, 'branch', '--list', 'dist')).toBe('');
+    expect(git(origin, 'tag', '--list', 'dist/*')).toBe('');
   });
 
   it('missing build directory', () => {

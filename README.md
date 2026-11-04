@@ -21,7 +21,7 @@
 - Multi-target releases are all-or-nothing: every branch and tag is pushed in a single atomic `git push`
 - Targets without changes are skipped with a notice and get no commit or tag
 - Consistent `v`-prefixed tags: version tags `vX.Y.Z`, release tags `<branch>/vX.Y.Z`
-- Preflight checks before anything is touched: clean working tree, `vX.Y.Z` at `HEAD`, build present, release tags absent locally and on the remote
+- Preflight checks before anything is touched: clean working tree, `vX.Y.Z` at `HEAD`, peer declarations' `@version` matching `package.json`, build present, release tags absent locally and on the remote
 - Never ships `*.types.js` (by default) and removes stale or hidden files already on the release branch
 - Generates a trimmed `package.json` for the release branch
 - `--dry-run` shows the staged diff per target and restores the worktrees; `--target` releases a subset
@@ -97,7 +97,7 @@ npm run release                            # release
 
 Run it from the released commit, after `git flow release finish` and the build:
 
-1. **Preflight**, before anything is modified: the working tree is clean (the tool's own `.worktrees/` is ignored), `vX.Y.Z` exists and points at `HEAD`, every target's build directory contains a `.js` file, every `files` and `include` source exists, and `<branch>/vX.Y.Z` exists neither locally nor on the remote. With `githubRelease` on, it also requires a GitHub remote, `vX.Y.Z` on the remote at the same commit, and a working authenticated `gh`.
+1. **Preflight**, before anything is modified: the working tree is clean (the tool's own `.worktrees/` is ignored), `vX.Y.Z` exists and points at `HEAD`, the `@version` header of `peer/<name>.peer.types.d.ts` (when that file exists) equals `package.json`'s `version`, every target's build directory contains a `.js` file, every `files` and `include` source exists, and `<branch>/vX.Y.Z` exists neither locally nor on the remote. With `githubRelease` on, it also requires a GitHub remote, `vX.Y.Z` on the remote at the same commit, and a working authenticated `gh`. Bump the `@version` header in the release branch together with the version, because the check runs on the tagged commit.
 2. **Sync**: for each target, fetches `<remote>/<branch>` if it exists and prepares a worktree at `.worktrees/<branch>` (reusing it, checking out the local branch, tracking the remote branch, or creating an orphan branch for a first release). The local branch is fast-forwarded to the remote; if it has commits the remote lacks, the release is refused.
 3. **Stage**: clears the worktree, copies the build minus `exclude` and `hide`, the `include` trees, the `files` and the generated `package.json`, then runs `git add -A`.
 4. **Guard**: fails with "Nothing to release" when no target has staged changes. Targets without changes are skipped and get no tag.

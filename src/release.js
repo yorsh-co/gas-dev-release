@@ -23,6 +23,7 @@ import {
 } from './github-release.js';
 import { matchesAny } from './glob.js';
 import { gasLibraryFor, releasePackageJson } from './package-json.js';
+import { assertPeerTypesVersion } from './peer-types.js';
 
 /** @typedef {import('./config.js').ReleaseConfig} ReleaseConfig */
 /** @typedef {import('./config.js').Target} Target */
@@ -290,6 +291,8 @@ function preflight(config, cwd) {
       `Version tag ${versionTag} does not point at HEAD — check out ${versionTag} (the released commit), or finish the git-flow release first.`,
     );
   }
+
+  assertPeerTypesVersion(config.pkg, cwd);
 
   for (const target of targets) {
     if (!hasJsFile(join(cwd, target.from))) {
