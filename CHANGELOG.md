@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Requires `gas-dev-config` `^1.9.0`
+- `.prettierignore` lists `.claude/worktrees`, `.claude/plans` and `.claude/handoff`, as required by `gas-dev-config check`
+
 ---
 
 ## [1.3.0] - 2026-11-04
