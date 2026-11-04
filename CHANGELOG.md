@@ -6,6 +6,7 @@
 
 ### Changed
 
+- **Breaking:** requires Node ^22.13.0, ^24.0.0 or >=26.0.0 (was >=20.10.0)
 - Requires `gas-dev-config` `^1.9.0`
 - `.prettierignore` lists `.claude/worktrees`, `.claude/plans` and `.claude/handoff`, as required by `gas-dev-config check`
 
