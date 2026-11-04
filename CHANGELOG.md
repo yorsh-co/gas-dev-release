@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.2.0] - 2026-11-04
+
 ### Added
 
 - Opt-in `githubRelease` option: creates the GitHub Release for `vX.Y.Z` via `gh` with the notes from the CHANGELOG; if the push succeeded but the Release failed, exits with code 3 and prints a retry command
