@@ -1,7 +1,7 @@
 // @ts-check
 import { parseArgs } from 'node:util';
 import pkg from '../package.json' with { type: 'json' };
-import { ReleaseError } from './errors.js';
+import { GitHubReleaseError, ReleaseError } from './errors.js';
 import { release } from './release.js';
 
 const OPTIONS = /** @type {const} */ ({
@@ -26,7 +26,8 @@ Options:
  * Runs the CLI.
  *
  * @param {string[]} argv Command-line arguments, without the node and script paths.
- * @returns {Promise<number>} The process exit code: 0 on success, 1 on a failed release, 2 on invalid usage.
+ * @returns {Promise<number>} The process exit code: 0 on success, 1 on a failed release, 2 on invalid usage,
+ * 3 when the release was pushed but the GitHub Release failed.
  */
 export async function main(argv) {
   /** @type {ReturnType<typeof parseArgs<{ options: typeof OPTIONS, strict: true, allowPositionals: false }>>['values']} */
@@ -65,7 +66,7 @@ export async function main(argv) {
   } catch (error) {
     if (error instanceof ReleaseError) {
       process.stderr.write(`gas-dev-release: ${error.message}\n`);
-      return 1;
+      return error instanceof GitHubReleaseError ? error.exitCode : 1;
     }
     throw error;
   }
