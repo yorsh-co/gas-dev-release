@@ -30,7 +30,7 @@
 
 ## Requirements
 
-- Node.js >= 20.10
+- Node.js ^22.13.0, ^24.0.0 or >=26.0.0
 - git >= 2.x with `git worktree` support
 - A git-flow-style version tag `vX.Y.Z` (matching `version` in `package.json`) pointing at `HEAD`
 - The build output (default `dist/`) already built, containing at least one `.js` file
