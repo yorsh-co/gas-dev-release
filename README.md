@@ -35,6 +35,7 @@
 - A git-flow-style version tag `vX.Y.Z` (matching `version` in `package.json`) pointing at `HEAD`
 - The build output (default `dist/`) already built, containing at least one `.js` file
 - A remote (default `origin`) that receives the release branches and tags
+- [GitHub CLI](https://cli.github.com) (`gh`), only when `githubRelease` is on
 
 > [!IMPORTANT]
 > The tool pushes to `gasDevRelease.remote` (default `origin`), which must be the canonical (GitHub) remote.
@@ -83,7 +84,7 @@ gas-dev-release [--dry-run] [--target <branch>]...
 | `-h`, `--help`      | Show usage                                                                                   |
 | `--version`         | Show the version                                                                             |
 
-Exit codes: `0` on success, `1` when the release is refused or fails, `2` on invalid usage (an unknown option or a positional argument).
+Exit codes: `0` on success, `1` when the release is refused or fails, `2` on invalid usage (an unknown option or a positional argument), `3` when the release was pushed but the GitHub Release failed (see [Failure recovery](#failure-recovery)).
 
 ```bash
 npm run release -- --dry-run               # preview every target
@@ -96,12 +97,13 @@ npm run release                            # release
 
 Run it from the released commit, after `git flow release finish` and the build:
 
-1. **Preflight**, before anything is modified: the working tree is clean (the tool's own `.worktrees/` is ignored), `vX.Y.Z` exists and points at `HEAD`, every target's build directory contains a `.js` file, every `files` and `include` source exists, and `<branch>/vX.Y.Z` exists neither locally nor on the remote.
+1. **Preflight**, before anything is modified: the working tree is clean (the tool's own `.worktrees/` is ignored), `vX.Y.Z` exists and points at `HEAD`, every target's build directory contains a `.js` file, every `files` and `include` source exists, and `<branch>/vX.Y.Z` exists neither locally nor on the remote. With `githubRelease` on, it also requires a GitHub remote, `vX.Y.Z` on the remote at the same commit, and a working authenticated `gh`.
 2. **Sync**: for each target, fetches `<remote>/<branch>` if it exists and prepares a worktree at `.worktrees/<branch>` (reusing it, checking out the local branch, tracking the remote branch, or creating an orphan branch for a first release). The local branch is fast-forwarded to the remote; if it has commits the remote lacks, the release is refused.
 3. **Stage**: clears the worktree, copies the build minus `exclude` and `hide`, the `include` trees, the `files` and the generated `package.json`, then runs `git add -A`.
 4. **Guard**: fails with "Nothing to release" when no target has staged changes. Targets without changes are skipped and get no tag.
 5. **Commit and tag** each changed target: commit `merge: vX.Y.Z`, tag `<branch>/vX.Y.Z`.
 6. **Push** all changed branches and tags once, atomically (`git push --atomic`).
+7. **GitHub Release** (opt-in, `githubRelease`): creates a GitHub Release for `vX.Y.Z` after the push, unless one (or a draft) already exists.
 
 ### Tags
 
@@ -118,6 +120,8 @@ For the default target the release tag is `dist/vX.Y.Z`.
 
 A dry run never commits, tags or pushes. Like a real run it fetches the remote branch and fast-forwards the local release branch to it, so those local ref updates remain. It exits `1` with "Nothing to release" in the same situations as a real run, so CI can detect it.
 
+With `githubRelease` on, the dry run also reports the GitHub Release outcome: would be created, already exists (skipped), or a draft exists (skipped).
+
 ## Configuration
 
 Configuration is optional and lives under a `gasDevRelease` key in your `package.json`. Without it, a single `dist` target with the defaults below is used.
@@ -129,10 +133,19 @@ Configuration is optional and lives under a `gasDevRelease` key in your `package
 }
 ```
 
-| Key       | Default                  | Description                                                |
-| --------- | ------------------------ | ---------------------------------------------------------- |
-| `remote`  | `"origin"`               | Remote that receives the branches and tags                 |
-| `targets` | `[{ "branch": "dist" }]` | Non-empty list of release targets; branches must be unique |
+| Key             | Default                  | Description                                                                                                     |
+| --------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `remote`        | `"origin"`               | Remote that receives the branches and tags                                                                      |
+| `targets`       | `[{ "branch": "dist" }]` | Non-empty list of release targets; branches must be unique                                                      |
+| `githubRelease` | `false`                  | After the push, create a GitHub Release for `vX.Y.Z` (requires `gh`, authenticated, and `vX.Y.Z` on the remote) |
+
+### GitHub Release
+
+The tool does not push `vX.Y.Z`; push it yourself (`git push <remote> vX.Y.Z`) before releasing. The remote must be a `github.com` repository.
+
+- **Notes**: the `## [X.Y.Z]` section of `CHANGELOG.md` (`[vX.Y.Z]` is also accepted). If there is none, the tag annotation is used, and otherwise the title `vX.Y.Z`.
+- **Auth**: `gh auth login` locally, or `GH_TOKEN`/`GITHUB_TOKEN` in CI.
+- **Existing releases**: if a Release for `vX.Y.Z` exists, it is left untouched. A draft counts as existing, so publish or delete it yourself.
 
 ### Target fields
 
@@ -228,6 +241,21 @@ If the final push is rejected, nothing reached the remote, but the local release
 - discard the local release: delete the tags with `git tag -d`, then reset each existing branch with `git -C .worktrees/<branch> reset --hard <remote>/<branch>`, or, for a branch that was never published, remove it with `git worktree remove --force .worktrees/<branch> && git branch -D <branch>`
 
 Because the push is atomic, a multi-target release is never left half-published.
+
+If `githubRelease` is on and the push succeeded but the GitHub Release could not be created, the tool exits `3`. The push is kept and nothing is rolled back. The notes are written to `.worktrees/github-release-vX.Y.Z.md`, and the error message prints the exact command to retry from the project root:
+
+```bash
+gh release create vX.Y.Z -R owner/repo --verify-tag --title vX.Y.Z --notes-file .worktrees/github-release-vX.Y.Z.md
+```
+
+Exit codes:
+
+| Code | Meaning                                                                 |
+| ---- | ----------------------------------------------------------------------- |
+| `0`  | Released                                                                |
+| `1`  | The release was refused or failed; nothing was pushed                   |
+| `2`  | Invalid usage                                                           |
+| `3`  | Released and pushed, but the GitHub Release was not created (see above) |
 
 ## Migrating from `scripts/release.sh`
 
