@@ -16,7 +16,11 @@ export class ReleaseError extends Error {
  * Exits with code 3 so CI can tell it apart from a release that never happened.
  */
 export class GitHubReleaseError extends ReleaseError {
-  /** Process exit code for this failure. */
+  /**
+   * Process exit code for this failure.
+   *
+   * @readonly
+   */
   exitCode = 3;
 
   /**

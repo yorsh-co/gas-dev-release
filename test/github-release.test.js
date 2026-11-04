@@ -28,6 +28,9 @@ describe('githubRepo', () => {
     'git@github.com:acme/gas-lib.git',
     'git@github.com:acme/gas-lib',
     'ssh://git@github.com/acme/gas-lib.git',
+    'ssh://git@github.com:22/acme/gas-lib.git',
+    'https://user@github.com/acme/gas-lib.git',
+    'https://x-access-token:TOKEN@github.com/acme/gas-lib',
   ])('parses %s', (url) => {
     expect(repoFor(url)).toBe('acme/gas-lib');
   });
@@ -36,6 +39,8 @@ describe('githubRepo', () => {
     'https://gitlab.com/acme/gas-lib.git',
     'https://github.com.evil.example/acme/gas-lib.git',
     'git@example.com:acme/gas-lib.git',
+    'https://github.com/ac;me/gas-lib.git',
+    'git@github.com:acme/$(gas-lib)',
   ])('rejects %s', (url) => {
     expect(() => repoFor(url)).toThrow(ReleaseError);
     expect(() => repoFor(url)).toThrow(/is not a GitHub repository/);
@@ -77,6 +82,15 @@ describe('releaseNotes', () => {
 
   it('accepts the [vX.Y.Z] heading form', () => {
     const { root } = createProject({ files: { 'CHANGELOG.md': changelog } });
+    expect(releaseNotes(root, '1.0.0')).toBe('### Added\n\n- first');
+  });
+
+  it('drops trailing link definitions from the last section', () => {
+    const { root } = createProject({
+      files: {
+        'CHANGELOG.md': `${changelog}\n[1.0.0]: https://example.com/1.0.0\n[Unreleased]: https://example.com/u\n`,
+      },
+    });
     expect(releaseNotes(root, '1.0.0')).toBe('### Added\n\n- first');
   });
 

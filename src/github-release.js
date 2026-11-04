@@ -6,7 +6,7 @@ import { ReleaseError } from './errors.js';
 import { git } from './git.js';
 
 const GITHUB_URL =
-  /^(?:https:\/\/github\.com\/|git@github\.com:|ssh:\/\/git@github\.com\/)([^/\s]+\/[^/\s]+?)(?:\.git)?\/?$/;
+  /^(?:https:\/\/(?:[^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com(?::\d+)?\/)([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/;
 
 /**
  * Resolves the `owner/repo` of a GitHub remote from its raw configured URL.
@@ -66,6 +66,7 @@ export function releaseNotes(cwd, version) {
     const section = lines
       .slice(start + 1, end === -1 ? undefined : end)
       .join('\n')
+      .replace(/(?:\s*\n\[[^\]]+\]:\s[^\n]*)+\s*$/, '')
       .replace(/(?:\s*\n---\s*)+$/, '')
       .trim();
     if (section) return section;
