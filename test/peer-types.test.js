@@ -69,6 +69,6 @@ describe('assertPeerTypesVersion', () => {
     const run = () =>
       assertPeerTypesVersion(pkg, project('/** No tag. */\nexport {};\n'));
     expect(run).toThrow(ReleaseError);
-    expect(run).toThrow(/@version/);
+    expect(run).toThrow(/add "@version 1\.2\.0"/);
   });
 });
