@@ -20,6 +20,14 @@ describe('strict config validation', () => {
       'gasDevRelease.targets[0].include[0].hids is not a known option.',
     ],
     [{ targets: [] }, 'gasDevRelease.targets must be a non-empty array.'],
+    [
+      { githubRelease: 'yes' },
+      'gasDevRelease.githubRelease must be a boolean.',
+    ],
+    [
+      { githubRelese: true },
+      'gasDevRelease.githubRelese is not a known option.',
+    ],
   ])('rejects %j', (config, message) => {
     const { root, origin } = createProject({ config });
 

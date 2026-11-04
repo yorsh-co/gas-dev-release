@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in `githubRelease` option: creates the GitHub Release for `vX.Y.Z` via `gh` with the notes from the CHANGELOG; if the push succeeded but the Release failed, exits with code 3 and prints a retry command
+
 ### Changed
 
 - README: links to the overview of the gas-dev-\* tools in gas-dev-config's README

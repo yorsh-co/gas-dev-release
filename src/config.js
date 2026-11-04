@@ -33,6 +33,7 @@ import { ReleaseError } from './errors.js';
  * @property {string} version The project's version.
  * @property {Record<string, unknown>} pkg The project's package.json.
  * @property {Target[]} targets Resolved release targets.
+ * @property {boolean} githubRelease Whether to create a GitHub Release for `vX.Y.Z` after the push.
  * @property {string[]} [loadOrder] `gasDevConfig.loadOrder`: `.ts` paths relative to `src/`, in load order.
  * @property {Record<string, string>} [peers] `gasDevConfig.peers`: optional libraries and their version ranges.
  */
@@ -275,7 +276,17 @@ export function loadConfig(cwd) {
   if (!isObject(options)) {
     throw new ReleaseError('gasDevRelease must be an object.');
   }
-  rejectUnknownKeys(options, ['remote', 'targets'], 'gasDevRelease');
+  rejectUnknownKeys(
+    options,
+    ['remote', 'targets', 'githubRelease'],
+    'gasDevRelease',
+  );
+  if (
+    options.githubRelease !== undefined &&
+    typeof options.githubRelease !== 'boolean'
+  ) {
+    throw new ReleaseError('gasDevRelease.githubRelease must be a boolean.');
+  }
   return {
     remote:
       options.remote === undefined
@@ -284,6 +295,7 @@ export function loadConfig(cwd) {
     version: pkg.version,
     pkg,
     targets: resolveTargets(options.targets),
+    githubRelease: options.githubRelease ?? false,
     ...resolveLibraryMetadata(pkg.gasDevConfig),
   };
 }
