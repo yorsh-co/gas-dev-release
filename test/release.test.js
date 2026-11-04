@@ -182,6 +182,21 @@ describe('release refusals', () => {
     expectRefusal(runRelease(root), /v1\.0\.0 does not point at HEAD/);
   });
 
+  it('refuses when the peer declarations @version is stale, pushing nothing', () => {
+    const { root, origin } = createProject({
+      files: {
+        'peer/gas-lib.peer.types.d.ts':
+          '/**\n * @version 0.9.0\n */\nexport {};\n',
+      },
+    });
+    expectRefusal(
+      runRelease(root),
+      /peer\/gas-lib\.peer\.types\.d\.ts.*0\.9\.0.*1\.0\.0/s,
+    );
+    expect(git(origin, 'branch', '--list', 'dist')).toBe('');
+    expect(git(origin, 'tag', '--list', 'dist/*')).toBe('');
+  });
+
   it('missing build directory', () => {
     const { root } = createProject();
     rmSync(join(root, 'dist'), { recursive: true });
