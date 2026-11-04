@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [1.2.1] - 2026-11-04
+
 ### Fixed
 
 - `githubRelease` accepts remotes that use an SSH host alias for github.com (for example `github:owner/repo.git`); previously preflight rejected them as non-GitHub
