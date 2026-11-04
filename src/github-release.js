@@ -8,8 +8,27 @@ import { git } from './git.js';
 const GITHUB_URL =
   /^(?:https:\/\/(?:[^@/\s]+@)?github\.com\/|git@github\.com:|ssh:\/\/git@github\.com(?::\d+)?\/)([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/;
 
+/** scp-like `[user@]host:owner/repo`; the host must not start with `-`. */
+const SCP_LIKE_URL =
+  /^(?:[\w.-]+@)?(\w[\w.-]*):([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/;
+
+/**
+ * Resolves an SSH host (possibly a `~/.ssh/config` alias) to its real hostname.
+ *
+ * @param {string} host
+ * @returns {string} The lowercased hostname, or `''` when ssh cannot resolve it.
+ */
+function sshHostname(host) {
+  const result = spawnSync('ssh', ['-G', host], { encoding: 'utf8' });
+  if (result.status !== 0) return '';
+  const line = result.stdout.split('\n').find((l) => l.startsWith('hostname '));
+  return line ? line.slice('hostname '.length).trim().toLowerCase() : '';
+}
+
 /**
  * Resolves the `owner/repo` of a GitHub remote from its raw configured URL.
+ * An scp-like URL whose host is an SSH alias for github.com (resolved with
+ * `ssh -G`) is accepted too.
  *
  * @param {string} remote Remote name.
  * @param {string} cwd Project root.
@@ -25,6 +44,10 @@ export function githubRepo(remote, cwd) {
   }
   const match = GITHUB_URL.exec(url);
   if (!match) {
+    const scp = SCP_LIKE_URL.exec(url);
+    if (scp && sshHostname(/** @type {string} */ (scp[1])) === 'github.com') {
+      return /** @type {string} */ (scp[2]);
+    }
     throw new ReleaseError(
       `Remote ${remote} (${url || 'no URL'}) is not a GitHub repository — githubRelease requires one.`,
     );

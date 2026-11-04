@@ -141,7 +141,7 @@ Configuration is optional and lives under a `gasDevRelease` key in your `package
 
 ### GitHub Release
 
-The tool does not push `vX.Y.Z`; push it yourself (`git push <remote> vX.Y.Z`) before releasing. The remote must be a `github.com` repository.
+The tool does not push `vX.Y.Z`; push it yourself (`git push <remote> vX.Y.Z`) before releasing. The remote must be a `github.com` repository; an SSH host alias for github.com (such as `github:owner/repo.git` with a `Host github` entry in `~/.ssh/config`) is resolved with `ssh -G`.
 
 - **Notes**: the `## [X.Y.Z]` section of `CHANGELOG.md` (`[vX.Y.Z]` is also accepted). If there is none, the tag annotation is used, and otherwise the title `vX.Y.Z`.
 - **Auth**: `gh auth login` locally, or `GH_TOKEN`/`GITHUB_TOKEN` in CI.
