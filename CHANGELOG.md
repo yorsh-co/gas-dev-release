@@ -9,6 +9,10 @@
 - Requires `gas-dev-config` `^1.9.0`
 - `.prettierignore` lists `.claude/worktrees`, `.claude/plans` and `.claude/handoff`, as required by `gas-dev-config check`
 
+### Fixed
+
+- Overrides transitive `minimatch` to `^11.0.1` (GHSA-g3hv-75wg-m249), which also lifts `brace-expansion` to `5.0.12`; see `gas-dev-config` ADR 0005
+
 ---
 
 ## [1.3.0] - 2026-11-04
