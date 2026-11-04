@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+---
+
+## [2.0.0] - 2026-11-04
+
 ### Changed
 
 - **Breaking:** requires Node ^22.13.0, ^24.0.0 or >=26.0.0 (was >=20.10.0)
