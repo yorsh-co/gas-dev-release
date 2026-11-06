@@ -97,7 +97,7 @@ npm run release                            # release
 
 Run it from the released commit, after `git flow release finish` and the build:
 
-1. **Preflight**, before anything is modified: the working tree is clean (the tool's own `.worktrees/` is ignored), `vX.Y.Z` exists and points at `HEAD`, the `@version` header of `peer/<name>.peer.types.d.ts` (when that file exists) equals `package.json`'s `version`, every target's build directory contains a `.js` file, every `files` and `include` source exists, and `<branch>/vX.Y.Z` exists neither locally nor on the remote. With `githubRelease` on, it also requires a GitHub remote, `vX.Y.Z` on the remote at the same commit, and a working authenticated `gh`. Bump the `@version` header in the release branch together with the version, because the check runs on the tagged commit.
+1. **Preflight**, before anything is modified: the working tree is clean (the tool's own `.worktrees/` is ignored), `vX.Y.Z` exists and points at `HEAD`, the `@version` header of `peer/<name>.peer.types.d.ts` (when that file exists) equals `package.json`'s `version`, every target's build directory contains a `.js` file, every `files` and `include` source exists, and `<branch>/vX.Y.Z` exists neither locally nor on the remote. With `githubRelease` on, it also requires a GitHub remote, `vX.Y.Z` on the remote at the same commit, and a working authenticated `gh`. It also requires rulesets that protect every target branch (`deletion`, `non_fast_forward`) and all tags (`deletion`, `non_fast_forward`, `update` on `~ALL`). Bump the `@version` header in the release branch together with the version, because the check runs on the tagged commit.
 2. **Sync**: for each target, fetches `<remote>/<branch>` if it exists and prepares a worktree at `.worktrees/<branch>` (reusing it, checking out the local branch, tracking the remote branch, or creating an orphan branch for a first release). The local branch is fast-forwarded to the remote; if it has commits the remote lacks, the release is refused.
 3. **Stage**: clears the worktree, copies the build minus `exclude` and `hide`, the `include` trees, the `files` and the generated `package.json`, then runs `git add -A`.
 4. **Guard**: fails with "Nothing to release" when no target has staged changes. Targets without changes are skipped and get no tag.
@@ -121,6 +121,8 @@ For the default target the release tag is `dist/vX.Y.Z`.
 A dry run never commits, tags or pushes. Like a real run it fetches the remote branch and fast-forwards the local release branch to it, so those local ref updates remain. It exits `1` with "Nothing to release" in the same situations as a real run, so CI can detect it.
 
 With `githubRelease` on, the dry run also reports the GitHub Release outcome: would be created, already exists (skipped), or a draft exists (skipped).
+
+The dry run also refuses repositories whose rulesets do not protect the target branches and tags.
 
 ## Configuration
 
@@ -146,6 +148,7 @@ The tool does not push `vX.Y.Z`; push it yourself (`git push <remote> vX.Y.Z`) b
 - **Notes**: the `## [X.Y.Z]` section of `CHANGELOG.md` (`[vX.Y.Z]` is also accepted). If there is none, the tag annotation is used, and otherwise the title `vX.Y.Z`.
 - **Auth**: `gh auth login` locally, or `GH_TOKEN`/`GITHUB_TOKEN` in CI.
 - **Existing releases**: if a Release for `vX.Y.Z` exists, it is left untouched. A draft counts as existing, so publish or delete it yourself.
+- **Rulesets**: every target branch needs `deletion` and `non_fast_forward`, and an active tag ruleset on `~ALL` (no exclusions) needs `deletion`, `non_fast_forward` and `update`. Organization rulesets count. Run `npx gas-dev-config github --fix` (needs admin rights) to apply them.
 
 ### Target fields
 
