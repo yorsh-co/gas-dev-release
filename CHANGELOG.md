@@ -6,6 +6,18 @@
 
 ---
 
+## [2.1.0] - 2026-11-06
+
+### Added
+
+- `githubRelease` preflight refuses to release, dry runs included, unless GitHub rulesets protect every target branch (`deletion`, `non_fast_forward`) and all tags (an active ruleset on `~ALL` with `deletion`, `non_fast_forward`, `update`); organization rulesets count. Fix with `npx gas-dev-config github --fix`
+
+### Changed
+
+- Requires `gas-dev-config` `^2.0.0`
+
+---
+
 ## [2.0.0] - 2026-11-04
 
 ### Changed

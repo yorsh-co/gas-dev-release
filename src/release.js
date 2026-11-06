@@ -24,6 +24,7 @@ import {
 import { matchesAny } from './glob.js';
 import { gasLibraryFor, releasePackageJson } from './package-json.js';
 import { assertPeerTypesVersion } from './peer-types.js';
+import { assertProtected } from './rulesets.js';
 
 /** @typedef {import('./config.js').ReleaseConfig} ReleaseConfig */
 /** @typedef {import('./config.js').Target} Target */
@@ -332,6 +333,7 @@ function preflight(config, cwd) {
 
   if (!config.githubRelease) return null;
   const repo = githubRepo(remote, cwd);
+  assertProtected(repo, targets, cwd);
   assertRemoteVersionTag(remote, versionTag, tagCommit, cwd);
   return { repo, state: findRelease(repo, versionTag, cwd) };
 }
