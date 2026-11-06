@@ -82,9 +82,12 @@ describe('githubRelease', () => {
     expect(result.stdout).toContain(
       'Dry run — nothing was committed, tagged, pushed or published.',
     );
-    expect(gh.calls().map(({ args }) => args.slice(0, 2))).toEqual([
-      ['release', 'view'],
-    ]);
+    expect(
+      gh
+        .calls()
+        .filter(({ args }) => args[0] === 'release')
+        .map(({ args }) => args.slice(0, 2)),
+    ).toEqual([['release', 'view']]);
     expect(branches(origin)).not.toContain('dist');
   });
 
@@ -154,6 +157,63 @@ describe('githubRelease', () => {
     expect(result.stderr).toContain('HTTP 401');
     expect(gh.calls().some(({ args }) => args[1] === 'create')).toBe(false);
     expect(branches(origin)).not.toContain('dist');
+  });
+
+  describe('rulesets', () => {
+    const UNPROTECTED = { branches: { dist: ['deletion'] } };
+
+    it('refuses an unprotected target branch before pushing', () => {
+      const { root, origin } = setup();
+      const gh = fakeGh({ rules: UNPROTECTED });
+
+      const result = runRelease(root, [], gh.env);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('dist: missing non_fast_forward');
+      expect(result.stderr).toContain('gas-dev-config github --fix');
+      expect(branches(origin)).not.toContain('dist');
+      expect(git(origin, 'tag', '--list')).not.toContain('dist/v1.0.0');
+      expect(gh.calls().some(({ args }) => args[0] === 'release')).toBe(false);
+    });
+
+    it('refuses when no tag ruleset is active', () => {
+      const { root, origin } = setup();
+      const gh = fakeGh({
+        rules: {
+          branches: { dist: ['deletion', 'non_fast_forward'] },
+          rulesets: [],
+        },
+      });
+
+      const result = runRelease(root, [], gh.env);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('tags: no active tag ruleset');
+      expect(branches(origin)).not.toContain('dist');
+      expect(gh.calls().some(({ args }) => args[0] === 'release')).toBe(false);
+    });
+
+    it('refuses an unprotected branch in a dry run', () => {
+      const { root } = setup();
+      const gh = fakeGh({ rules: UNPROTECTED });
+
+      const result = runRelease(root, ['--dry-run'], gh.env);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('dist: missing non_fast_forward');
+      expect(result.stderr).toContain('gas-dev-config github --fix');
+    });
+
+    it('fails when gh cannot read the rulesets', () => {
+      const { root, origin } = setup();
+      const gh = fakeGh({ rules: 'error' });
+
+      const result = runRelease(root, [], gh.env);
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain('HTTP 401');
+      expect(branches(origin)).not.toContain('dist');
+    });
   });
 
   it('requires the version tag on the remote', () => {
