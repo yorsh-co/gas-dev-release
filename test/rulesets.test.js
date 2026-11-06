@@ -202,6 +202,11 @@ describe('assertProtected', () => {
     expect(failure(targets('dist'))).toContain('HTTP 401: Bad credentials');
   });
 
+  it('fails on non-JSON gh output', () => {
+    setup({ rules: 'garbage' });
+    expect(failure(targets('dist'))).toContain('returned unexpected output');
+  });
+
   it('requests a slashed branch without encoding the slash', () => {
     const gh = setup({});
     assertProtected(REPO, targets('dist/web'), process.cwd());

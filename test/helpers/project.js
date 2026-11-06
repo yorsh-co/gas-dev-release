@@ -218,8 +218,8 @@ export function useGitHubRemote(root, origin) {
  * @param {object} [behavior]
  * @param {'absent' | 'published' | 'draft' | 'error'} [behavior.view] Outcome of `release view`.
  * @param {'ok' | 'fail'} [behavior.create] Outcome of `release create`.
- * @param {'protected' | 'error' | { branches?: Record<string, string[]>, rulesets?: object[] }} [behavior.rules]
- *   Outcome of `gh api` rulesets lookups: fully protected, an auth failure, or the rule types per
+ * @param {'protected' | 'error' | 'garbage' | { branches?: Record<string, string[]>, rulesets?: object[] }} [behavior.rules]
+ *   Outcome of `gh api` rulesets lookups: fully protected, an auth failure, non-JSON output, or the rule types per
  *   branch (`branches`) and the repository rulesets (`rulesets`, with `id`, `target`, `enforcement`,
  *   `conditions` and `rules`).
  * @returns {{ env: Record<string, string>, calls: () => { args: string[], stdin: string }[] }}
@@ -240,8 +240,8 @@ export function fakeGh({
   writeFileSync(log, '');
   /** @type {Record<string, string>} */
   const rulesEnv = {};
-  if (rules === 'error') {
-    rulesEnv.FAKE_GH_RULES = 'error';
+  if (rules === 'error' || rules === 'garbage') {
+    rulesEnv.FAKE_GH_RULES = rules;
   } else if (rules !== 'protected') {
     const file = join(sandbox, 'rules.json');
     writeFileSync(file, JSON.stringify(rules));

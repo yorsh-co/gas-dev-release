@@ -202,6 +202,7 @@ describe('githubRelease', () => {
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('dist: missing non_fast_forward');
       expect(result.stderr).toContain('gas-dev-config github --fix');
+      expect(gh.calls().some(({ args }) => args[0] === 'release')).toBe(false);
     });
 
     it('fails when gh cannot read the rulesets', () => {

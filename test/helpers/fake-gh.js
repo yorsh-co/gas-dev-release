@@ -36,7 +36,7 @@ if (command === 'release' && subcommand === 'view') {
 
 /**
  * Answers `gh api` for the rulesets endpoints. $FAKE_GH_RULES unset means fully protected,
- * `error` fails, anything else is a JSON file `{ branches, rulesets }`.
+ * `error` fails, `garbage` prints non-JSON, anything else is a JSON file `{ branches, rulesets }`.
  * A ruleset with `listOnly` appears in the list but has no detail (404).
  *
  * @param {string} path
@@ -46,6 +46,10 @@ function api(path) {
   if (mode === 'error') {
     process.stderr.write('HTTP 401: Bad credentials\n');
     process.exit(1);
+  }
+  if (mode === 'garbage') {
+    process.stdout.write('not json\n');
+    process.exit(0);
   }
   const data = mode
     ? JSON.parse(readFileSync(mode, 'utf8'))
