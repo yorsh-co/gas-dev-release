@@ -2,6 +2,9 @@
 
 ## Release tool for gas-\* Google Apps Script libraries: publishes the build to dist branches with tags.
 
+> [!CAUTION]
+> Deprecated: folded into [gasdev](https://github.com/yorsh-co/gasdev) as `gasdev release`. See [Migrating to 3.0](https://github.com/yorsh-co/gasdev#migrating-to-30). This repository is archived.
+
 > [!NOTE]
 > `gas-dev-release` is development tooling. It is installed as a dev dependency and is never pushed to Apps Script.
 

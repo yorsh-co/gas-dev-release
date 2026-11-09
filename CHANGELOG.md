@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Deprecated
+
+- `gas-dev-release` is folded into [gasdev](https://github.com/yorsh-co/gasdev) as `gasdev release`; the repository is archived and receives no further releases
+
 ---
 
 ## [2.1.0] - 2026-11-06
